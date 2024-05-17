@@ -95,9 +95,34 @@ async function loginUser(req, res) {
     res.status(500).json({ error: error.message });
   }
 }
+async function authUser(req, res) {
+  const id = req.params.id;
+  if (!id) {
+    return res.status(422).json({ error: "Please provide all the required fields" });
+  }
+  const user = await user_default.findById(id, "-password -confirmpassword");
+  if (!user) {
+    return res.status(404).json({ error: "User not found" });
+  }
+  res.status(200).json({ user });
+}
+function checkToken(req, res, next) {
+  const token = req.headers["authorization"]?.split(" ")[1];
+  if (!token) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  try {
+    const secret = process.env.SECRET;
+    import_jsonwebtoken.default.verify(token, secret || "");
+    next();
+  } catch (error) {
+    res.status(400).json({ error: "Invalid token" });
+  }
+}
 
 // routes/user.ts
 var router = (0, import_express.Router)();
+router.get("/user/:id", authUser, checkToken);
 router.post("/auth/register", registerUser);
 router.post("/auth/login", loginUser);
 var user_default2 = router;

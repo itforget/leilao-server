@@ -1,7 +1,7 @@
 import User from "../models/user";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import express, { Request, Response, Router } from "express";
+import express, { Request, Response, NextFunction} from "express";
 
 async function registerUser(req: Request, res: Response) {
   const { name, email, password, confirmpassword } = req.body;
@@ -71,4 +71,34 @@ async function loginUser(req: Request, res: Response) {
   }
 }
 
-export { registerUser, loginUser };
+async function authUser(req: Request, res: Response) {
+  const id = req.params.id;
+  if (!id) {
+    return res
+      .status(422)
+      .json({ error: "Please provide all the required fields" });
+  }
+  const user = await User.findById(id, "-password -confirmpassword");
+  if (!user) {
+    return res.status(404).json({ error: "User not found" });
+  }
+  res.status(200).json({ user });
+}
+
+function checkToken(req: Request, res: Response, next: NextFunction) {
+  const token = req.headers["authorization"]?.split(" ")[1];
+
+  if (!token) {
+      return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  try {
+      const secret = process.env.SECRET;
+      jwt.verify(token, secret || "");
+      next();
+  } catch (error) {
+      res.status(400).json({ error: "Invalid token" });
+  }
+}
+
+export { registerUser, loginUser, authUser, checkToken };

@@ -23,13 +23,102 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 ));
 
 // api/index.ts
-var import_express = __toESM(require("express"));
-var import_express2 = require("express");
-var app = (0, import_express.default)();
-var route = (0, import_express2.Router)();
-app.use(import_express.default.json());
-route.get("/", (req, res) => {
-  res.json({ message: "hello world with Typescript" });
+var import_config = require("dotenv/config");
+var import_express2 = __toESM(require("express"));
+var import_mongoose2 = __toESM(require("mongoose"));
+
+// routes/user.ts
+var import_express = require("express");
+
+// models/user.ts
+var import_mongoose = __toESM(require("mongoose"));
+var userSchema = new import_mongoose.default.Schema({
+  name: { type: String, required: true },
+  email: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+  confirmpassword: { type: String, required: true }
 });
-app.use(route);
-app.listen(3333, () => "server running on port 3333");
+var User = import_mongoose.default.model("User", userSchema);
+var user_default = User;
+
+// controllers/user.ts
+var import_bcrypt = __toESM(require("bcrypt"));
+var import_jsonwebtoken = __toESM(require("jsonwebtoken"));
+async function registerUser(req, res) {
+  const { name, email, password, confirmpassword } = req.body;
+  if (!name || !email || !password || !confirmpassword) {
+    return res.status(422).json({ error: "Please provide all the required fields" });
+  }
+  if (password !== confirmpassword) {
+    return res.status(422).json({ error: "Passwords do not match" });
+  }
+  const verifyEmail = await user_default.findOne({ email });
+  if (verifyEmail) {
+    return res.status(422).json({ error: "Email already exists" });
+  }
+  const salt = await import_bcrypt.default.genSalt(12);
+  const passwordHash = await import_bcrypt.default.hash(password, salt);
+  const user = new user_default({
+    name,
+    email,
+    password: passwordHash,
+    confirmpassword: passwordHash
+  });
+  try {
+    await user.save();
+    res.status(201).json({ msg: "User created successfully" });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ error: error.message });
+  }
+}
+async function loginUser(req, res) {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(422).json({ error: "Please provide all the required fields" });
+  }
+  const user = await user_default.findOne({ email });
+  if (!user) {
+    return res.status(404).json({ error: "User not found" });
+  }
+  const isMatch = await import_bcrypt.default.compare(password, user.password);
+  if (!isMatch) {
+    return res.status(422).json({ error: "Invalid password" });
+  }
+  try {
+    const token = import_jsonwebtoken.default.sign({ id: user._id }, process.env.SECRET || "", {
+      expiresIn: "1h"
+    });
+    res.status(200).json({ msg: "User logged in successfully", token, userId: user._id });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ error: error.message });
+  }
+}
+
+// routes/user.ts
+var router = (0, import_express.Router)();
+router.post("/auth/register", registerUser);
+router.post("/auth/login", loginUser);
+var user_default2 = router;
+
+// api/index.ts
+var import_cors = __toESM(require("cors"));
+var app = (0, import_express2.default)();
+app.use(import_express2.default.json());
+app.use((0, import_cors.default)(
+  {
+    origin: "*"
+  }
+));
+user_default2.get("/", (req, res) => {
+  res.json({ message: "hello world" });
+});
+app.use(user_default2);
+import_mongoose2.default.connect(process.env.MONGO_DB_URL || "").then(() => {
+  app.listen(process.env.PORT || 5e3, () => {
+    console.log(`Server is running on port ${process.env.PORT}`);
+  });
+}).catch((err) => {
+  console.log(err);
+});
